@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Management System (Updated UI)</title>
+<style>
+body{font-family:Arial;background:#f4f6f8;padding:20px}
+.container{max-width:1200px;margin:auto}
+.card{background:#fff;padding:15px;margin-bottom:10px;border-radius:10px}
+input,select,button{width:100%;padding:8px;margin:5px 0;box-sizing:border-box}
+.btn{background:black;color:white;border:none;padding:10px;cursor:pointer}
+.btn2{background:#ccc;border:none;padding:10px;cursor:pointer}
+.hidden{display:none}
+.small{font-size:12px;color:gray}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- LOGIN -->
+<div id="loginBox" class="card">
+<h2>Login</h2>
+<input id="uid" placeholder="User ID">
+<input id="pwd" type="password" placeholder="Password">
+<button class="btn" onclick="login()">Login</button>
+<button class="btn2" onclick="forgotPassword()">Forgot Password</button>
+<p id="err" style="color:red"></p>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+
+<div class="card">
+<h2>Order System</h2>
+<button class="btn2" onclick="logout()">Logout</button>
+<p id="who"></p>
+</div>
+
+<!-- ADMIN MENU -->
+<div id="adminMenu" class="card hidden">
+<button onclick="view='users';render()">Users</button>
+<button onclick="view='orders';render()">Orders</button>
+<button onclick="view='audit';render()">Audit</button>
+</div>
+
+<!-- CREATE ORDER -->
+<div class="card">
+<h3>Create Order</h3>
+
+<h4>Merchant Section</h4>
+<select id="merchant" onchange="step1()">
+<option value="">Select Merchant</option>
+<option>UBER EAT</option>
+<option>CITY HIVE</option>
+<option>PAYARC</option>
+<option>DOORDASH</option>
+<option>SQUARE</option>
+<option>GRUBHUB</option>
+<option>GODADDY</option>
+</select>
+
+<select id="type" onchange="step1()">
+<option value="">Delivery Type</option>
+<option>PICK-UP</option>
+<option>STORE DELIVERY</option>
+<option>3RD PARTY DELIVERY</option>
+</select>
+
+<input id="orderId" placeholder="Order ID" disabled oninput="step2()">
+
+<h4>Limitless Section</h4>
+<input id="date" type="date" disabled>
+<input id="trx" placeholder="TRX #" disabled>
+<input id="amount" placeholder="Amount" disabled>
+
+<button class="btn" onclick="addOrder()">Save Order</button>
+</div>
+
+<div id="content"></div>
+</div>
+</div>
+
+<script>
+
+// USERS
+let users = JSON.parse(localStorage.getItem("users")) ||
+Array.from({length:20},(_,i)=>({
+  id:i===0?"ADMINX":`user${String(i+1).padStart(2,'0')}`,
+  pwd:i===0?"pass2026!":`pass${String(i+1).padStart(2,'0')}`,
+  email:i===0?"admin@system.com":`user${i+1}@system.com`,
+  role:i===0?"admin":"user"
+}));
+
+let orders = JSON.parse(localStorage.getItem("orders")) || [];
+let audit = JSON.parse(localStorage.getItem("audit")) || [];
+
+let session=null;
+let view="users";
+let selectedUser=null;
+
+function save(){
+  localStorage.setItem("users",JSON.stringify(users));
+  localStorage.setItem("orders",JSON.stringify(orders));
+  localStorage.setItem("audit",JSON.stringify(audit));
+}
+
+// LOGIN
+function login(){
+  let u=users.find(x=>x.id==uid.value.trim() && x.pwd==pwd.value.trim());
+  if(!u){err.innerText="Invalid login";return;}
+
+  session=u;
+  loginBox.classList.add("hidden");
+  app.classList.remove("hidden");
+
+  who.innerText=`Logged in: ${u.id}`;
+
+  if(u.role=="admin") adminMenu.classList.remove("hidden");
+
+  render();
+}
+
+// FORGOT PASSWORD
+function forgotPassword(){
+  let email=prompt("Enter your email:");
+  let u=users.find(x=>x.email===email);
+  if(!u){alert("Email not found");return;}
+
+  let temp=Math.random().toString(36).slice(-6);
+  u.pwd=temp;
+  save();
+
+  alert("Temporary password: " + temp);
+  window.location.href=`mailto:${email}?subject=Password Reset&body=Your new password: ${temp}`;
+}
+
+// STEP CONTROL
+function step1(){
+  orderId.disabled=!(merchant.value&&type.value);
+}
+
+function step2(){
+  let ok=orderId.value.length>0;
+  date.disabled=!ok;
+  trx.disabled=!ok;
+  amount.disabled=!ok;
+}
+
+// ADD ORDER (TIP REMOVED)
+function addOrder(){
+  let id=orderId.value.toUpperCase();
+
+  if(!id.startsWith("R-") && orders.find(o=>o.id==id)){
+    alert("Duplicate Order ID");return;
+  }
+
+  orders.unshift({
+    id,
+    merchant:merchant.value,
+    type:type.value,
+    date:date.value,
+    trx:trx.value,
+    amount:amount.value,
+    user:session.id,
+    time:Date.now()
+  });
+
+  save();
+  render();
+}
+
+function logout(){location.reload();}
+
+// USER EDIT (ADMIN DROPDOWN)
+function selectUser(){
+  selectedUser = users.find(u=>u.id==userSelect.value);
+  render();
+}
+
+function saveUser(){
+  let idx = users.findIndex(u=>u.id==selectedUser.id);
+  users[idx]=selectedUser;
+  save();
+  alert("User updated");
+}
+
+// SAFE RENDER
+function render(){
+
+  if(!session) return;
+
+  let c=document.getElementById("content");
+
+  // ADMIN USERS TAB (DROPDOWN EDIT)
+  if(session.role=="admin" && view=="users"){
+    c.innerHTML=`
+    <div class='card'>
+      <h3>User Management</h3>
+
+      <select id='userSelect' onchange='selectUser()'>
+        <option value=''>Select User</option>
+        ${users.map(u=>`<option value='${u.id}'>${u.id}</option>`).join('')}
+      </select>
+
+      ${selectedUser ? `
+        <input value='${selectedUser.id}' onchange="selectedUser.id=this.value">
+        <input value='${selectedUser.pwd}' onchange="selectedUser.pwd=this.value">
+        <input value='${selectedUser.email}' onchange="selectedUser.email=this.value">
+        <select onchange="selectedUser.role=this.value">
+          <option value='user' ${selectedUser.role==='user'?'selected':''}>user</option>
+          <option value='admin' ${selectedUser.role==='admin'?'selected':''}>admin</option>
+        </select>
+        <button class='btn' onclick='saveUser()'>Save Changes</button>
+      ` : ''}
+    </div>`;
+    return;
+  }
+
+  // ORDERS
+  if(session.role=="admin" && view=="orders"){
+    c.innerHTML="<div class='card'><h3>ALL ORDERS</h3>"+
+    orders.map(o=>`<div class='card small'><b>${o.id}</b> ${o.merchant} ${o.date}</div>`).join("")+
+    "</div>";
+    return;
+  }
+
+  let my=orders.filter(o=>o.user==session.id);
+
+  c.innerHTML="<div class='card'><h3>MY ORDERS</h3>"+
+  my.map(o=>`<div class='card small'>${o.id} ${o.merchant}</div>`).join("")+
+  "</div>";
+}
+
+</script>
+
+</body>
+</html>
